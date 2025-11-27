@@ -36,10 +36,12 @@
             border-radius: 22px;
             transition: 0.4s;
             z-index: 0;
+            user-select: none;
+            -webkit-user-select: none;
         }
         
         .slider::before {
-            content: "⏹";
+            content: "▪";
             position: absolute;
             height: 18px;
             width: 18px;
@@ -137,6 +139,7 @@
             overflow: hidden;
             transition: background 0.2s;
             user-select: none;
+            -webkit-user-select: none;
         }
         
         .player:hover { background: #e0e0e0; }
