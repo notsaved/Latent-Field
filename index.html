@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Latent Field</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #fff; padding: 20px; font-size: 14px; }
+        
+        .controls {
+            margin-top: 20px;
+            display: flex;
+            gap: 30px;
+            align-items: center;
+        }
+        
+        .switch {
+            position: relative;
+            width: 40px;
+            height: 22px;
+            display: flex;
+            align-items: center;
+        }
+        
+        .switch input { display: none; }
+        
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: #ccc;
+            border-radius: 22px;
+            transition: 0.4s;
+            z-index: 0;
+        }
+        
+        .slider::before {
+            content: "⏹";
+            position: absolute;
+            height: 18px;
+            width: 18px;
+            left: 2px;
+            bottom: 2px;
+            background: white;
+            border-radius: 50%;
+            transition: 0.4s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            z-index: 1;
+        }
+        
+        input:checked + .slider {
+            background: #000;
+        }
+        
+        input:checked + .slider::before {
+            content: "⟳";
+            transform: translateX(18px);
+        }
+        
+        #playMode + .slider::before {
+            content: "✦";
+        }
+        
+        #playMode:checked + .slider::before {
+            content: "≈";
+        }
+        
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(50px, 1fr));
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .info-section {
+            width: 100%;
+            max-width: calc(100% - 40px);
+            margin-top: 30px;
+        }
+        
+        .info-bar {
+            height: 1px;
+            background: #d0d0d0;
+            margin-bottom: 15px;
+        }
+        
+        .info-text {
+            font-size: 12px;
+            line-height: 1.6;
+            color: #666;
+        }
+        
+        .info-text div:first-child {
+            font-weight: bold;
+        }
+        
+        .info-text div:nth-child(3) {
+            margin-top: 8px;
+        }
+        
+        .legend {
+            margin-top: 20px;
+            font-size: 11px;
+            color: #666;
+            line-height: 2;
+            display: grid;
+            grid-template-columns: auto auto auto auto;
+            gap: 0 2px;
+            max-width: 150px;
+        }
+        
+        .legend-item {
+            margin-bottom: 0;
+        }
+        
+        .legend-symbol {
+            font-weight: bold;
+            color: #000;
+        }
+        
+        .player {
+            width: 50px;
+            height: 50px;
+            background: #f0f0f0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+            transition: background 0.2s;
+        }
+        
+        .player:hover { background: #e0e0e0; }
+        .player.playing { background: #d0d0d0; }
+        
+        .progress-bar {
+            position: absolute;
+            left: 0;
+            top: 0;
+            height: 100%;
+            background: #000;
+            width: 0%;
+            transition: width 0.1s linear;
+        }
+    </style>
+</head>
+<body>
+    <div class="grid" id="grid"></div>
+    
+    <div class="controls">
+        <label class="switch">
+            <input type="checkbox" id="loopMode">
+            <span class="slider"></span>
+        </label>
+        
+        <label class="switch">
+            <input type="checkbox" id="playMode">
+            <span class="slider"></span>
+        </label>
+    </div>
+    
+    <div class="info-section">
+        <div class="info-bar"></div>
+        <div class="info-text">
+            <div>Latent Field</div>
+            <div>Gabriele de Seta, 2025</div>
+            <div>A playback interface for exploring the <i>latent field</i> of ChatGPT's text-to-speech model. All samples are recordings of ChatGPT responses in which the text-to-speech model is nudged towards outputting non-verbal sounds, resulting in the appearance of glitches that seem to point towards outliying areas of the training data represented in the model's latent space. It is likely that those include the remainder of unwanted noises, interjections, pauses and ambient sounds ingested during training alongside samples of natural language. A double act of recording is at play here: ChatGPT's text-to-speech output is recorded as the synthesis of abstracted patterns derived from recordings of human speech acts. Playing them back in a new randomized order allows the listener to explore this latent field on their own terms.</div>
+        </div>
+        <div class="legend">
+            <div class="legend-symbol">⏹</div>
+            <div>One-shot</div>
+            <div class="legend-symbol">⟳</div>
+            <div>Loop</div>
+            <div class="legend-symbol">✦</div>
+            <div>Click</div>
+            <div class="legend-symbol">≈</div>
+            <div>Hover</div>
+        </div>
+    </div>
+    
+    <script>
+        const grid = document.getElementById('grid');
+        const loopCheckbox = document.getElementById('loopMode');
+        const playModeCheckbox = document.getElementById('playMode');
+        
+        // Shuffle helper
+        const shuffle = arr => {
+            const result = [...arr];
+            for (let i = result.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [result[i], result[j]] = [result[j], result[i]];
+            }
+            return result;
+        };
+        
+        const shuffledTracks = shuffle(Array.from({length: 100}, (_, i) => i + 1));
+        
+        shuffledTracks.forEach((trackNum, i) => {
+            const player = document.createElement('div');
+            player.className = 'player';
+            
+            const progress = document.createElement('div');
+            progress.className = 'progress-bar';
+            player.appendChild(progress);
+            
+            const audio = new Audio();
+            audio.src = `audio/track${trackNum}.mp3`;
+            
+            const updateProgress = () => {
+                if (audio.duration) {
+                    progress.style.width = (audio.currentTime / audio.duration * 100) + '%';
+                }
+            };
+            
+            player.addEventListener('click', () => {
+                if (playModeCheckbox.checked) return;
+                
+                if (audio.paused) {
+                    audio.play();
+                    player.classList.add('playing');
+                } else {
+                    audio.pause();
+                    player.classList.remove('playing');
+                }
+            });
+            
+            player.addEventListener('mouseenter', () => {
+                if (!playModeCheckbox.checked) return;
+                
+                if (audio.paused) {
+                    audio.play();
+                    player.classList.add('playing');
+                } else {
+                    audio.pause();
+                    player.classList.remove('playing');
+                }
+            });
+            
+            audio.addEventListener('play', () => player.classList.add('playing'));
+            audio.addEventListener('pause', () => player.classList.remove('playing'));
+            audio.addEventListener('timeupdate', updateProgress);
+            audio.addEventListener('ended', () => {
+                player.classList.remove('playing');
+                progress.style.width = '0%';
+                if (loopCheckbox.checked) {
+                    audio.currentTime = 0;
+                    audio.play();
+                }
+            });
+            
+            grid.appendChild(player);
+        });
+    </script>
+</body>
+</html>
